@@ -1,44 +1,62 @@
-from	ubuntu:14.04
-run	echo 'deb http://us.archive.ubuntu.com/ubuntu/ trusty universe' >> /etc/apt/sources.list
-run	apt-get -y update
+FROM ubuntu:14.04
 
-run	apt-get -y install software-properties-common &&\
-	add-apt-repository ppa:chris-lea/node.js &&\
-	apt-get -y update
+ENV DEBIAN_FRONTEND noninteractive
 
-run     apt-get -y install  python-django-tagging python-simplejson python-memcache \
-			    python-ldap python-cairo python-django python-twisted   \
-			    python-pysqlite2 python-support python-pip gunicorn     \
-			    supervisor nginx-light nodejs git wget curl
+RUN apt-get -y install curl &&\
+    echo 'deb http://us.archive.ubuntu.com/ubuntu/ trusty universe' >> /etc/apt/sources.list &&\
+    curl -sL https://deb.nodesource.com/setup_4.x | bash
+
+ENV GRAPHITE_VERSION 0.9.15
+ENV GRAFANA_VERSION 2.1.3
+
+RUN apt-get -y install      \
+  python-django-tagging     \
+  python-simplejson         \
+  python-memcache           \
+  python-ldap               \
+  python-cairo              \
+  python-django             \
+  python-twisted            \
+  python-pysqlite2          \
+  python-support            \
+  python-pip                \
+  gunicorn                  \
+  supervisor                \ 
+  nginx-light               \
+  nodejs                    \
+  git                       \
+  wget                      
 
 # Install statsd
-run	mkdir /src && git clone https://github.com/etsy/statsd.git /src/statsd
+RUN	mkdir /src && git clone https://github.com/etsy/statsd.git /src/statsd
+
+
 
 # Install required packages
-run	pip install whisper
-run	pip install --install-option="--prefix=/var/lib/graphite" --install-option="--install-lib=/var/lib/graphite/lib" carbon
-run	pip install --install-option="--prefix=/var/lib/graphite" --install-option="--install-lib=/var/lib/graphite/webapp" graphite-web
+RUN	pip install whisper pytz
+RUN	pip install --install-option="--prefix=/var/lib/graphite" --install-option="--install-lib=/var/lib/graphite/lib" carbon
+RUN	pip install --install-option="--prefix=/var/lib/graphite" --install-option="--install-lib=/var/lib/graphite/webapp" graphite-web==$GRAPHITE_VERSION
 
 # grafana
-run     cd ~ &&\
+RUN     cd ~ &&\
 	wget https://grafanarel.s3.amazonaws.com/builds/grafana_2.1.3_amd64.deb &&\
         dpkg -i grafana_2.1.3_amd64.deb && rm grafana_2.1.3_amd64.deb
 
 # statsd
-add	./statsd/config.js /src/statsd/config.js
+ADD	./statsd/config.js /src/statsd/config.js
 
-# Add graphite config
-add	./graphite/initial_data.json /var/lib/graphite/webapp/graphite/initial_data.json
-add	./graphite/local_settings.py /var/lib/graphite/webapp/graphite/local_settings.py
-add	./graphite/carbon.conf /var/lib/graphite/conf/carbon.conf
-add	./graphite/storage-schemas.conf /var/lib/graphite/conf/storage-schemas.conf
-add	./graphite/storage-aggregation.conf /var/lib/graphite/conf/storage-aggregation.conf
+# ADD graphite config
+ADD	./graphite/initial_data.json /var/lib/graphite/webapp/graphite/initial_data.json
+ADD	./graphite/local_settings.py /var/lib/graphite/webapp/graphite/local_settings.py
+ADD	./graphite/carbon.conf /var/lib/graphite/conf/carbon.conf
+ADD	./graphite/storage-schemas.conf /var/lib/graphite/conf/storage-schemas.conf
+ADD	./graphite/storage-aggregation.conf /var/lib/graphite/conf/storage-aggregation.conf
 
-add     ./grafana/config.ini /etc/grafana/config.ini
+ADD     ./grafana/config.ini /etc/grafana/config.ini
 
-# Add system service config
-add	./nginx/nginx.conf /etc/nginx/nginx.conf
-add	./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# ADD system service config
+ADD	./nginx/nginx.conf /etc/nginx/nginx.conf
+ADD	./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 
 
@@ -46,23 +64,23 @@ add	./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # Nginx
 #
 # graphite
-expose	80
+EXPOSE	80
 # grafana
-expose  3000
+EXPOSE  3000
 
 # Carbon line receiver port
-expose	2003
+EXPOSE	2003
 # Carbon pickle receiver port
-expose	2004
+EXPOSE	2004
 # Carbon cache query port
-expose	7002
+EXPOSE	7002
 
 # Statsd UDP port
-expose	8125/udp
+EXPOSE	8125/udp
 # Statsd Management port
-expose	8126
+EXPOSE	8126
 
-add ./bin/init /usr/bin/init
+ADD ./bin/init /usr/bin/init
 
-cmd /usr/bin/init
+CMD /usr/bin/init
 
